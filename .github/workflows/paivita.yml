@@ -1,0 +1,51 @@
+name: Päivitä Capitalsin tulos
+
+on:
+  schedule:
+    # GitHubin ajastus käyttää UTC-aikaa. Suomen klo 7 on talvella 05 UTC ja kesällä 04 UTC,
+    # joten ajastus herää molempina aikoina ja jälkimmäinen tarkistus päästää läpi vain Suomen klo 7:n.
+    - cron: "0 4 * * *"
+    - cron: "0 5 * * *"
+  workflow_dispatch: # sovelluksen "Hae tulos" -nappi ja Actions-välilehden Run workflow
+
+permissions:
+  contents: write
+
+# Jos nappia painetaan monta kertaa peräkkäin, ajot jonottavat eivätkä riitele keskenään.
+concurrency:
+  group: paivita
+  cancel-in-progress: false
+
+jobs:
+  paivita:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Onko Suomessa klo 7?
+        id: aika
+        run: |
+          TUNTI=$(TZ=Europe/Helsinki date +%H)
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$TUNTI" = "07" ]; then
+            echo "aja=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Suomessa klo $TUNTI, ohitetaan tämä ajastus."
+          fi
+      - if: steps.aika.outputs.aja == 'true'
+        uses: actions/checkout@v4
+      - if: steps.aika.outputs.aja == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - if: steps.aika.outputs.aja == 'true'
+        run: node scripts/paivita.mjs
+      - name: Tallenna muutos repoon
+        if: steps.aika.outputs.aja == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "Ei muutoksia."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/tulos.json
+          git commit -m "Päivitä ottelun tulos"
+          git push
