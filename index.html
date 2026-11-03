@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#041E42">
+<title>Capitals – voitto vai häviö?</title>
+<style>
+  :root {
+    --navy: #041E42;
+    --navy-2: #0A2A5C;
+    --red: #C8102E;
+    --white: #FFFFFF;
+    --silver: #A2AAAD;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    color: var(--white);
+    background: var(--navy) radial-gradient(120% 80% at 50% 0%, var(--navy-2), var(--navy) 60%) no-repeat;
+    overflow-x: hidden;
+  }
+
+  /* Punavalkoiset raidat yläreunassa */
+  .raidat {
+    height: 14px;
+    background: repeating-linear-gradient(90deg, var(--red) 0 28px, var(--white) 28px 56px);
+  }
+
+  .vesileima {
+    position: fixed; inset: 0;
+    display: grid; place-items: center;
+    pointer-events: none; z-index: 0;
+  }
+  .vesileima img { width: min(85vw, 560px); opacity: .07; filter: grayscale(.2); }
+
+  main {
+    position: relative; z-index: 1;
+    min-height: calc(100% - 14px);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 20px 0; text-align: center;
+  }
+
+  .otsikko { letter-spacing: .35em; font-size: .8rem; font-weight: 700; color: var(--silver); }
+  .tahdet { color: var(--red); letter-spacing: .5em; margin: 6px 0 0 .5em; font-size: 1rem; }
+
+  .tunniste { margin-top: 28px; font-size: 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: .15em; }
+  .pvm { margin-top: 4px; color: var(--silver); font-size: .95rem; }
+
+  .ottelu {
+    margin-top: 26px;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 12px;
+    width: min(100%, 520px);
+  }
+  .joukkue { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .logo {
+    width: 92px; height: 92px; border-radius: 50%;
+    background: rgba(255,255,255,.95);
+    display: grid; place-items: center; overflow: hidden;
+    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  }
+  .logo img { width: 80%; height: 80%; object-fit: contain; }
+  .logo span { color: var(--navy); font-weight: 800; font-size: 1.4rem; }
+  .joukkue.oma .logo { outline: 3px solid var(--red); outline-offset: 3px; }
+  .nimi { font-weight: 700; font-size: 1rem; line-height: 1.2; }
+  .rooli { font-size: .72rem; color: var(--silver); text-transform: uppercase; letter-spacing: .15em; }
+  .vs { margin-top: 36px; font-weight: 800; color: var(--silver); font-size: 1.1rem; }
+
+  .tulos {
+    margin-top: 34px;
+    font-size: clamp(3.6rem, 17vw, 7rem);
+    font-weight: 900; letter-spacing: .04em; line-height: 1;
+    padding: 18px 34px 22px; border-radius: 18px;
+  }
+  .tulos.voitto {
+    background: var(--red); color: var(--white);
+    box-shadow: 0 0 0 4px var(--white), 0 0 0 8px var(--red), 0 16px 50px rgba(200,16,46,.45);
+  }
+  .tulos.havio {
+    background: transparent; color: var(--silver);
+    border: 3px solid rgba(162,170,173,.5);
+  }
+  .lisatieto { margin-top: 14px; color: var(--silver); font-size: .9rem; min-height: 1.2em; }
+
+  .viesti { margin-top: 60px; color: var(--silver); }
+
+  .toiminnot { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .nappi {
+    font: inherit; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--white); background: transparent;
+    border: 2px solid var(--white); border-radius: 999px;
+    padding: 12px 28px; cursor: pointer;
+  }
+  .nappi:active { transform: scale(.97); }
+  .nappi:disabled { opacity: .5; cursor: default; }
+  .tila { color: var(--silver); font-size: .85rem; min-height: 1.2em; }
+  .asetuslinkki { background: none; border: 0; color: var(--silver); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
+
+  .asetukset {
+    margin-top: 6px; width: min(100%, 380px); text-align: left;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+    border-radius: 14px; padding: 16px; display: grid; gap: 10px;
+  }
+  .asetukset label { font-size: .8rem; color: var(--silver); display: grid; gap: 4px; }
+  .asetukset input {
+    font: inherit; font-size: .95rem; padding: 9px 10px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.25); color: var(--white);
+  }
+  .asetukset .rivi { display: flex; gap: 8px; justify-content: flex-end; }
+  .asetukset .ohje { font-size: .78rem; color: var(--silver); line-height: 1.4; }
+
+  .siluetti { margin: auto -20px 0; width: calc(100% + 40px); padding-top: 40px; }
+  .siluetti svg { display: block; width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div class="raidat"></div>
+<div class="vesileima" id="vesileima" hidden><img alt=""></div>
+
+<main>
+  <div class="otsikko">WASHINGTON CAPITALS</div>
+  <div class="tahdet">★ ★ ★</div>
+
+  <div id="sisalto"><p class="viesti">Ladataan…</p></div>
+
+  <div class="toiminnot">
+    <button class="nappi" id="haeNappi">Hae tulos</button>
+    <div class="tila" id="tila"></div>
+    <button class="asetuslinkki" id="asetusLinkki">Asetukset</button>
+    <form class="asetukset" id="asetukset" hidden>
+      <label>GitHub-käyttäjänimi <input id="aOmistaja" autocomplete="off"></label>
+      <label>Repon nimi <input id="aRepo" autocomplete="off"></label>
+      <label>GitHub-token <input id="aToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+      <p class="ohje">Token tallentuu vain tähän laitteeseen. Ohjeet tokenin luomiseen ovat README-tiedostossa.</p>
+      <div class="rivi">
+        <button type="button" class="asetuslinkki" id="aPeru">Peruuta</button>
+        <button type="submit" class="nappi">Tallenna</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Washingtonin maamerkkejä: Lincoln Memorial, Washington Monument, Jefferson Memorial ja Capitol -->
+  <div class="siluetti" aria-hidden="true">
+    <svg viewBox="0 0 1200 240" preserveAspectRatio="xMidYMax meet">
+      <g fill="#0B2D63">
+        <!-- puurivi -->
+        <path d="M0 220 Q30 196 60 214 Q90 192 125 212 Q160 198 190 214 Q330 204 360 212 Q395 194 420 212 L470 212 Q500 196 530 212 Q570 200 600 214 Q640 196 680 212 Q720 200 740 214 L1100 214 Q1130 198 1160 212 Q1180 202 1200 210 L1200 240 L0 240 Z"/>
+      </g>
+      <g fill="#123873">
+        <!-- Lincoln Memorial -->
+        <rect x="110" y="196" width="220" height="12"/>
+        <rect x="120" y="186" width="200" height="10"/>
+        <rect x="130" y="138" width="180" height="48"/>
+        <rect x="124" y="126" width="192" height="12"/>
+        <rect x="140" y="114" width="160" height="12"/>
+        <!-- Washington Monument -->
+        <polygon points="428,214 452,214 447,44 433,44"/>
+        <polygon points="433,44 447,44 440,26"/>
+        <!-- Jefferson Memorial -->
+        <rect x="560" y="196" width="120" height="12"/>
+        <rect x="572" y="164" width="96" height="32"/>
+        <path d="M578 164 Q620 112 662 164 Z"/>
+        <polygon points="566,170 620,148 674,170"/>
+        <!-- Capitol -->
+        <rect x="760" y="198" width="340" height="14"/>
+        <rect x="770" y="170" width="320" height="28"/>
+        <rect x="790" y="160" width="80" height="10"/>
+        <rect x="990" y="160" width="80" height="10"/>
+        <rect x="878" y="150" width="104" height="20"/>
+        <rect x="886" y="116" width="88" height="34"/>
+        <rect x="880" y="108" width="100" height="8"/>
+        <path d="M888 108 Q888 52 930 48 Q972 52 972 108 Z"/>
+        <rect x="922" y="30" width="16" height="20"/>
+        <path d="M918 30 Q930 18 942 30 Z"/>
+        <rect x="928" y="8" width="4" height="14"/>
+      </g>
+      <g fill="#0B2D63">
+        <!-- pylväiden välit -->
+        <rect x="142" y="142" width="6" height="42"/><rect x="160" y="142" width="6" height="42"/>
+        <rect x="178" y="142" width="6" height="42"/><rect x="196" y="142" width="6" height="42"/>
+        <rect x="214" y="142" width="6" height="42"/><rect x="232" y="142" width="6" height="42"/>
+        <rect x="250" y="142" width="6" height="42"/><rect x="268" y="142" width="6" height="42"/>
+        <rect x="286" y="142" width="6" height="42"/>
+        <rect x="582" y="172" width="5" height="22"/><rect x="598" y="172" width="5" height="22"/>
+        <rect x="637" y="172" width="5" height="22"/><rect x="653" y="172" width="5" height="22"/>
+        <rect x="894" y="120" width="5" height="28"/><rect x="908" y="120" width="5" height="28"/>
+        <rect x="922" y="120" width="5" height="28"/><rect x="936" y="120" width="5" height="28"/>
+        <rect x="950" y="120" width="5" height="28"/><rect x="964" y="120" width="5" height="28"/>
+      </g>
+      <rect x="0" y="228" width="1200" height="12" fill="#C8102E"/>
+    </svg>
+  </div>
+</main>
+
+<script>
+  const OMA = "WSH";
+  const sisalto = document.getElementById("sisalto");
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function joukkueHtml(j, rooli) {
+    const oma = j.lyhenne === OMA ? " oma" : "";
+    return `<div class="joukkue${oma}">
+        <div class="logo"><img src="${esc(j.logo)}" alt="${esc(j.nimi)}"
+          onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${esc(j.lyhenne)}'}))"></div>
+        <div class="nimi">${esc(j.nimi)}</div>
+        <div class="rooli">${rooli}</div>
+      </div>`;
+  }
+
+  function nayta(data) {
+    if (!data || !data.ottelu || !data.tulos) {
+      sisalto.innerHTML = `<p class="viesti">Ei vielä pelattuja otteluita.</p>`;
+      return;
+    }
+    const o = data.ottelu;
+    nykyinenId = o.id;
+    const alku = new Date(o.alkoi);
+    const tuntiaSitten = (Date.now() - alku) / 36e5;
+    const tunniste = tuntiaSitten < 24 ? "Yön ottelu" : "Edellinen ottelu";
+    // Ottelupäivä paikallisessa Washingtonin ajassa, kuten NHL sen ilmoittaa
+    const pvm = alku.toLocaleDateString("fi-FI", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", timeZone: "America/New_York" });
+
+    const voitto = data.tulos === "VOITTO";
+    const capsLogo = [o.koti, o.vieras].find((j) => j.lyhenne === OMA)?.logo;
+    if (capsLogo) {
+      const v = document.getElementById("vesileima");
+      v.querySelector("img").src = capsLogo;
+      v.querySelector("img").onerror = () => (v.hidden = true);
+      v.hidden = false;
+    }
+
+    sisalto.innerHTML = `
+      <div class="tunniste">${tunniste}</div>
+      <div class="pvm">${esc(pvm)}${o.pudotuspeli ? " · Pudotuspelit" : ""}</div>
+      <div class="ottelu">
+        ${joukkueHtml(o.koti, "Koti")}
+        <div class="vs">–</div>
+        ${joukkueHtml(o.vieras, "Vieras")}
+      </div>
+      <div class="tulos ${voitto ? "voitto" : "havio"}">${voitto ? "VOITTO" : "HÄVIÖ"}</div>
+      <div class="lisatieto">${o.areena ? esc(o.areena) : ""}</div>`;
+    document.title = `Capitals – ${voitto ? "voitto" : "häviö"}`;
+  }
+
+  // ---------- Asetukset (tallentuvat vain tähän laitteeseen) ----------
+  const AVAIN = "capsTulosAsetukset";
+  function oletukset() {
+    // https://kayttaja.github.io/repo/ → kayttaja + repo
+    const h = location.hostname;
+    if (!h.endsWith(".github.io")) return { omistaja: "", repo: "" };
+    return { omistaja: h.split(".")[0], repo: location.pathname.split("/").filter(Boolean)[0] || "" };
+  }
+  function asetukset() {
+    let tallennetut = {};
+    try { tallennetut = JSON.parse(localStorage.getItem(AVAIN)) || {}; } catch {}
+    const o = oletukset();
+    return { omistaja: tallennetut.omistaja || o.omistaja, repo: tallennetut.repo || o.repo, token: tallennetut.token || "" };
+  }
+  const valmis = (a) => a.omistaja && a.repo && a.token;
+
+  const lomake = document.getElementById("asetukset");
+  function avaaAsetukset() {
+    const a = asetukset();
+    document.getElementById("aOmistaja").value = a.omistaja;
+    document.getElementById("aRepo").value = a.repo;
+    document.getElementById("aToken").value = a.token;
+    lomake.hidden = false;
+  }
+  document.getElementById("asetusLinkki").onclick = () => (lomake.hidden ? avaaAsetukset() : (lomake.hidden = true));
+  document.getElementById("aPeru").onclick = () => (lomake.hidden = true);
+  lomake.onsubmit = (e) => {
+    e.preventDefault();
+    const uudet = {
+      omistaja: document.getElementById("aOmistaja").value.trim(),
+      repo: document.getElementById("aRepo").value.trim(),
+      token: document.getElementById("aToken").value.trim(),
+    };
+    try { localStorage.setItem(AVAIN, JSON.stringify(uudet)); } catch {
+      return asetaTila("Asetuksia ei voitu tallentaa tähän selaimeen.");
+    }
+    lomake.hidden = true;
+    asetaTila("Asetukset tallennettu.");
+  };
+
+  // ---------- GitHub ----------
+  function gh(polku, valinnat = {}) {
+    const a = asetukset();
+    return fetch(`https://api.github.com/repos/${encodeURIComponent(a.omistaja)}/${encodeURIComponent(a.repo)}${polku}`, {
+      ...valinnat,
+      cache: "no-store",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${a.token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(valinnat.headers || {}),
+      },
+    });
+  }
+
+  async function lataaTulos() {
+    // Tokenin kanssa luetaan suoraan repon tuorein versio (ei odotella Pages-sivun päivittymistä)
+    if (valmis(asetukset())) {
+      try {
+        const r = await gh("/contents/data/tulos.json", { headers: { Accept: "application/vnd.github.raw+json" } });
+        if (r.ok) return await r.json();
+      } catch {}
+    }
+    const r = await fetch(`data/tulos.json?t=${Date.now()}`, { cache: "no-store" });
+    return r.json();
+  }
+
+  // ---------- Hae tulos -nappi ----------
+  const nappi = document.getElementById("haeNappi");
+  const asetaTila = (t) => (document.getElementById("tila").textContent = t);
+  const odota = (ms) => new Promise((r) => setTimeout(r, ms));
+  let nykyinenId = null;
+
+  async function haeNyt() {
+    if (!valmis(asetukset())) {
+      asetaTila("Lisää ensin GitHub-token asetuksiin.");
+      return avaaAsetukset();
+    }
+    nappi.disabled = true;
+    const aloitettu = Date.now();
+    try {
+      asetaTila("Käynnistetään haku…");
+      const r = await gh("/actions/workflows/paivita.yml/dispatches", {
+        method: "POST",
+        body: JSON.stringify({ ref: "main" }),
+      });
+      if (r.status === 401) throw new Error("Token ei kelpaa. Tarkista asetukset.");
+      if (r.status === 403 || r.status === 404) throw new Error("Ei oikeutta tai repoa ei löydy. Tarkista käyttäjänimi, repo ja tokenin oikeudet.");
+      if (!r.ok) throw new Error(`GitHub vastasi virheellä ${r.status}.`);
+
+      // Odotetaan, että ajo valmistuu (yleensä 20–60 s)
+      for (let i = 0; i < 60; i++) {
+        await odota(4000);
+        const vastaus = await gh("/actions/workflows/paivita.yml/runs?event=workflow_dispatch&per_page=1");
+        const ajo = vastaus.ok ? (await vastaus.json()).workflow_runs?.[0] : null;
+        if (!ajo || new Date(ajo.created_at).getTime() < aloitettu - 15000) {
+          asetaTila("Odotetaan GitHubia…");
+          continue;
+        }
+        if (ajo.status !== "completed") {
+          asetaTila(`Haetaan tulosta NHL:stä… (${Math.round((Date.now() - aloitettu) / 1000)} s)`);
+          continue;
+        }
+        if (ajo.conclusion !== "success") throw new Error("Haku epäonnistui. Katso lisätiedot GitHubin Actions-välilehdeltä.");
+        const data = await lataaTulos();
+        const uusi = data?.ottelu?.id !== nykyinenId;
+        nayta(data);
+        asetaTila(uusi ? "Tulos päivitetty." : "Ei uutta ottelua. Näytetään viimeisin.");
+        return;
+      }
+      throw new Error("Haku kesti liian kauan. Yritä hetken päästä uudelleen.");
+    } catch (e) {
+      asetaTila(e.message || "Haku epäonnistui.");
+    } finally {
+      nappi.disabled = false;
+    }
+  }
+  nappi.onclick = haeNyt;
+
+  // ---------- Käynnistys ----------
+  lataaTulos()
+    .then(nayta)
+    .catch(() => (sisalto.innerHTML = `<p class="viesti">Tulosta ei saatu ladattua. Yritä hetken päästä uudelleen.</p>`));
+</script>
+</body>
+</html>
