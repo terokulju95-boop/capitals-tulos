@@ -1,4 +1,19 @@
 {
-  "tulos": null,
-  "ottelu": null
+  "tulos": "HÄVIÖ",
+  "ottelu": {
+    "id": 2026020228,
+    "alkoi": "2026-11-01T20:30:00Z",
+    "pudotuspeli": false,
+    "areena": "Capital One Arena",
+    "koti": {
+      "lyhenne": "WSH",
+      "nimi": "Washington Capitals",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
+    },
+    "vieras": {
+      "lyhenne": "MIN",
+      "nimi": "Minnesota Wild",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/MIN_light.svg"
+    }
+  }
 }
