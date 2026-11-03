@@ -89,6 +89,34 @@
   }
   .lisatieto { margin-top: 14px; color: var(--silver); font-size: .9rem; min-height: 1.2em; }
 
+  .tulos.kaynnissa {
+    font-size: clamp(2.4rem, 11vw, 4.6rem);
+    color: var(--white); border: 3px solid var(--white);
+    display: flex; align-items: center; gap: 18px;
+  }
+  .pallo {
+    width: .38em; height: .38em; border-radius: 50%; background: var(--red); flex: none;
+    box-shadow: 0 0 0 0 rgba(200,16,46,.7); animation: syke 1.6s infinite;
+  }
+  @keyframes syke {
+    0% { box-shadow: 0 0 0 0 rgba(200,16,46,.7); }
+    70% { box-shadow: 0 0 0 .35em rgba(200,16,46,0); }
+    100% { box-shadow: 0 0 0 0 rgba(200,16,46,0); }
+  }
+
+  .sarja, .seuraava {
+    margin: 14px auto 0; width: min(100%, 420px);
+    padding: 12px 16px; border-radius: 12px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    font-size: .95rem; line-height: 1.35;
+  }
+  .sarja { border-color: rgba(200,16,46,.7); font-weight: 700; }
+  .sarja span, .seuraava span {
+    display: block; font-size: .7rem; font-weight: 600; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--silver); margin-bottom: 3px;
+  }
+  .sarja + .seuraava { margin-top: 10px; }
+
   .viesti { margin-top: 60px; color: var(--silver); }
 
   .toiminnot { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -116,12 +144,32 @@
   .asetukset .rivi { display: flex; gap: 8px; justify-content: flex-end; }
   .asetukset .ohje { font-size: .78rem; color: var(--silver); line-height: 1.4; }
 
+  .paivitys {
+    position: fixed; z-index: 10; left: 50%; bottom: 20px; transform: translateX(-50%);
+    width: min(calc(100% - 32px), 420px);
+    background: var(--white); color: var(--navy);
+    border-radius: 16px; padding: 16px 18px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    border-top: 6px solid var(--red);
+  }
+  .paivitys p { line-height: 1.4; }
+  .paivitys .rivi { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 12px; }
+  .paivitys .asetuslinkki { color: #555; font-size: .9rem; }
+  .nappi.punainen { background: var(--red); border-color: var(--red); padding: 10px 24px; }
+
   .siluetti { margin: auto -20px 0; width: calc(100% + 40px); padding-top: 40px; }
   .siluetti svg { display: block; width: 100%; height: auto; }
 </style>
 </head>
 <body>
 <div class="raidat"></div>
+<div class="paivitys" id="paivitys" role="dialog" aria-live="polite" hidden>
+  <p><strong>Sovellukseen on tullut päivitys.</strong><br>Päivitetäänkö nyt?</p>
+  <div class="rivi">
+    <button class="asetuslinkki" id="myohemminNappi">Myöhemmin</button>
+    <button class="nappi punainen" id="paivitaNappi">Päivitä</button>
+  </div>
+</div>
 <div class="vesileima" id="vesileima" hidden><img alt=""></div>
 
 <main>
@@ -215,38 +263,97 @@
       </div>`;
   }
 
+  // Ottelupäivä paikallisessa Washingtonin ajassa, kuten NHL sen ilmoittaa
+  const nhlPaiva = (iso) => new Date(iso).toLocaleDateString("fi-FI", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", timeZone: "America/New_York" });
+  // Suomen aika: "to 6.11. klo 2.00"
+  function suomenAika(iso) {
+    const d = new Date(iso);
+    const pv = d.toLocaleDateString("fi-FI", { weekday: "short", day: "numeric", month: "numeric", timeZone: "Europe/Helsinki" });
+    const klo = d.toLocaleTimeString("fi-FI", { hour: "numeric", minute: "2-digit", timeZone: "Europe/Helsinki" });
+    return `${pv} klo ${klo}`;
+  }
+  const vastustaja = (o) => (o.koti.lyhenne === OMA ? o.vieras : o.koti);
+
+  function asetaVesileima(o) {
+    const capsLogo = [o.koti, o.vieras].find((j) => j.lyhenne === OMA)?.logo;
+    if (!capsLogo) return;
+    const v = document.getElementById("vesileima");
+    v.querySelector("img").src = capsLogo;
+    v.querySelector("img").onerror = () => (v.hidden = true);
+    v.hidden = false;
+  }
+
+  function otteluHtml(o) {
+    return `<div class="ottelu">
+        ${joukkueHtml(o.koti, "Koti")}
+        <div class="vs">–</div>
+        ${joukkueHtml(o.vieras, "Vieras")}
+      </div>`;
+  }
+
+  function sarjaHtml(s) {
+    if (!s) return "";
+    const v = s.voitot, t = s.tappiot, nimi = esc(s.vastustaja);
+    let teksti;
+    if (v === 4) teksti = `Capitals voitti sarjan ${v}–${t}`;
+    else if (t === 4) teksti = `${nimi} voitti sarjan ${t}–${v}`;
+    else if (v > t) teksti = `Capitals johtaa ${v}–${t}`;
+    else if (t > v) teksti = `${nimi} johtaa ${t}–${v}`;
+    else if (v === 0) teksti = `Sarja ${nimi} vastaan alkaa`;
+    else teksti = `Sarja tasan ${v}–${t}`;
+    return `<div class="sarja"><span>Pudotuspelisarja</span>${teksti}</div>`;
+  }
+
+  function seuraavaHtml(s) {
+    if (!s) return "";
+    const vast = vastustaja(s);
+    const missa = s.koti.lyhenne === OMA ? "kotona" : "vieraissa";
+    if (new Date(s.alkoi) <= Date.now()) {
+      return `<div class="seuraava">Ottelu ${esc(vast.nimi)} vastaan alkoi ${esc(suomenAika(s.alkoi))}. Paina Hae tulos, niin näet tilanteen.</div>`;
+    }
+    return `<div class="seuraava"><span>Seuraava</span>${esc(suomenAika(s.alkoi))} · ${esc(vast.nimi)}, ${missa}${s.pudotuspeli ? " · Pudotuspelit" : ""}</div>`;
+  }
+
+  // Käynnissä oleva ottelu näytetään enintään 6 tuntia alkamisesta (vanhentunut tieto ohitetaan)
+  const onKaynnissa = (data) => data?.kaynnissa && Date.now() - new Date(data.kaynnissa.alkoi) < 6 * 36e5;
+
   function nayta(data) {
+    if (onKaynnissa(data)) {
+      const k = data.kaynnissa;
+      nykyinenId = `live-${k.id}`;
+      asetaVesileima(k);
+      sisalto.innerHTML = `
+        <div class="tunniste">Ottelu käynnissä</div>
+        <div class="pvm">${esc(nhlPaiva(k.alkoi))}${k.pudotuspeli ? " · Pudotuspelit" : ""}</div>
+        ${otteluHtml(k)}
+        <div class="tulos kaynnissa"><i class="pallo"></i>KÄYNNISSÄ</div>
+        <div class="lisatieto">${k.areena ? esc(k.areena) : ""}</div>
+        ${sarjaHtml(data.sarja)}
+        ${seuraavaHtml(data.seuraava)}`;
+      document.title = "Capitals – ottelu käynnissä";
+      return;
+    }
+
     if (!data || !data.ottelu || !data.tulos) {
-      sisalto.innerHTML = `<p class="viesti">Ei vielä pelattuja otteluita.</p>`;
+      nykyinenId = null;
+      sisalto.innerHTML = `<p class="viesti">Ei vielä pelattuja otteluita.</p>${seuraavaHtml(data?.seuraava)}`;
       return;
     }
     const o = data.ottelu;
     nykyinenId = o.id;
-    const alku = new Date(o.alkoi);
-    const tuntiaSitten = (Date.now() - alku) / 36e5;
+    const tuntiaSitten = (Date.now() - new Date(o.alkoi)) / 36e5;
     const tunniste = tuntiaSitten < 24 ? "Yön ottelu" : "Edellinen ottelu";
-    // Ottelupäivä paikallisessa Washingtonin ajassa, kuten NHL sen ilmoittaa
-    const pvm = alku.toLocaleDateString("fi-FI", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", timeZone: "America/New_York" });
-
     const voitto = data.tulos === "VOITTO";
-    const capsLogo = [o.koti, o.vieras].find((j) => j.lyhenne === OMA)?.logo;
-    if (capsLogo) {
-      const v = document.getElementById("vesileima");
-      v.querySelector("img").src = capsLogo;
-      v.querySelector("img").onerror = () => (v.hidden = true);
-      v.hidden = false;
-    }
+    asetaVesileima(o);
 
     sisalto.innerHTML = `
       <div class="tunniste">${tunniste}</div>
-      <div class="pvm">${esc(pvm)}${o.pudotuspeli ? " · Pudotuspelit" : ""}</div>
-      <div class="ottelu">
-        ${joukkueHtml(o.koti, "Koti")}
-        <div class="vs">–</div>
-        ${joukkueHtml(o.vieras, "Vieras")}
-      </div>
+      <div class="pvm">${esc(nhlPaiva(o.alkoi))}${o.pudotuspeli ? " · Pudotuspelit" : ""}</div>
+      ${otteluHtml(o)}
       <div class="tulos ${voitto ? "voitto" : "havio"}">${voitto ? "VOITTO" : "HÄVIÖ"}</div>
-      <div class="lisatieto">${o.areena ? esc(o.areena) : ""}</div>`;
+      <div class="lisatieto">${o.areena ? esc(o.areena) : ""}</div>
+      ${sarjaHtml(data.sarja)}
+      ${seuraavaHtml(data.seuraava)}`;
     document.title = `Capitals – ${voitto ? "voitto" : "häviö"}`;
   }
 
@@ -355,9 +462,10 @@
         }
         if (ajo.conclusion !== "success") throw new Error("Haku epäonnistui. Katso lisätiedot GitHubin Actions-välilehdeltä.");
         const data = await lataaTulos();
-        const uusi = data?.ottelu?.id !== nykyinenId;
+        const ennen = nykyinenId;
         nayta(data);
-        asetaTila(uusi ? "Tulos päivitetty." : "Ei uutta ottelua. Näytetään viimeisin.");
+        if (onKaynnissa(data)) asetaTila("Ottelu on käynnissä. Hae tulos uudelleen ottelun jälkeen.");
+        else asetaTila(nykyinenId !== ennen ? "Tulos päivitetty." : "Ei uutta ottelua. Näytetään viimeisin.");
         return;
       }
       throw new Error("Haku kesti liian kauan. Yritä hetken päästä uudelleen.");
@@ -370,7 +478,42 @@
   nappi.onclick = haeNyt;
 
   // ---------- Asennettava sovellus ----------
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Kun GitHubiin tulee uusi versio, sovellus kysyy "Päivitetäänkö?". Päivitä-napin jälkeen sivu latautuu uutena.
+  if ("serviceWorker" in navigator) {
+    let paivitysPyydetty = false;
+    const palkki = document.getElementById("paivitys");
+
+    function tarjoaPaivitys(odottava) {
+      palkki.hidden = false;
+      document.getElementById("paivitaNappi").onclick = () => {
+        paivitysPyydetty = true;
+        document.getElementById("paivitaNappi").disabled = true;
+        document.getElementById("paivitaNappi").textContent = "Päivitetään…";
+        odottava.postMessage("PAIVITA");
+      };
+      document.getElementById("myohemminNappi").onclick = () => (palkki.hidden = true);
+    }
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (paivitysPyydetty) location.reload();
+    });
+
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      // Uusi versio odottaa jo valmiina (ladattu edellisellä kerralla)
+      if (reg.waiting && navigator.serviceWorker.controller) tarjoaPaivitys(reg.waiting);
+      // Uusi versio löytyy nyt
+      reg.addEventListener("updatefound", () => {
+        const uusi = reg.installing;
+        uusi?.addEventListener("statechange", () => {
+          if (uusi.state === "installed" && navigator.serviceWorker.controller) tarjoaPaivitys(uusi);
+        });
+      });
+      // Tarkistetaan päivitykset myös, kun sovellus palaa taustalta näkyviin
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update().catch(() => {});
+      });
+    }).catch(() => {});
+  }
 
   // ---------- Käynnistys ----------
   lataaTulos()

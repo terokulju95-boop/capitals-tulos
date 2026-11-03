@@ -1,6 +1,9 @@
-// Hakee Washington Capitalsin viimeisimmän pelatun ottelun NHL:n rajapinnasta
-// ja kirjoittaa tiedostoon data/tulos.json vain tiedon voitosta tai häviöstä.
-// Maalimääriä ei tallenneta, jotta lopputulos ei paljastu.
+// Hakee Washington Capitalsin otteluohjelman NHL:n rajapinnasta ja kirjoittaa tiedostoon data/tulos.json:
+//  - viimeisimmän pelatun ottelun joukkueet ja tiedon VOITTO / HÄVIÖ
+//  - käynnissä olevan ottelun (jos sellainen on)
+//  - seuraavan ottelun
+//  - pudotuspelisarjan tilanteen keväällä
+// Maalimääriä ei tallenneta, jotta yksittäisten otteluiden lopputulokset eivät paljastu.
 
 import { readFile, writeFile } from "node:fs/promises";
 
@@ -17,14 +20,11 @@ async function hae(polku) {
 }
 
 const pelattu = (o) => ["OFF", "FINAL"].includes(o.gameState);
+const kaynnissa = (o) => ["LIVE", "CRIT"].includes(o.gameState);
+const tulossa = (o) => ["FUT", "PRE"].includes(o.gameState);
 // 2 = runkosarja, 3 = pudotuspelit. Harjoitusottelut (1) jätetään pois.
 const oikeaOttelu = (o) => o.gameType === 2 || o.gameType === 3;
-
-function viimeisinPelattu(otteluohjelma) {
-  const ottelut = (otteluohjelma.games ?? []).filter((o) => pelattu(o) && oikeaOttelu(o));
-  ottelut.sort((a, b) => new Date(a.startTimeUTC) - new Date(b.startTimeUTC));
-  return ottelut.at(-1);
-}
+const aikajarjestys = (a, b) => new Date(a.startTimeUTC) - new Date(b.startTimeUTC);
 
 function joukkue(t) {
   const paikka = t.placeName?.default ?? t.city ?? "";
@@ -32,47 +32,88 @@ function joukkue(t) {
   return {
     lyhenne: t.abbrev,
     nimi: `${paikka} ${nimi}`.trim() || t.abbrev,
+    lyhytNimi: nimi || t.abbrev,
     logo: t.logo ?? `https://assets.nhle.com/logos/nhl/svg/${t.abbrev}_light.svg`,
   };
 }
 
+const vastustajaOf = (o) => (o.homeTeam.abbrev === JOUKKUE ? o.awayTeam : o.homeTeam);
+const omaOf = (o) => (o.homeTeam.abbrev === JOUKKUE ? o.homeTeam : o.awayTeam);
+const voitettu = (o) => omaOf(o).score > vastustajaOf(o).score;
+
+function otteluTiedot(o) {
+  return {
+    id: o.id,
+    alkoi: o.startTimeUTC,
+    pudotuspeli: o.gameType === 3,
+    areena: o.venue?.default ?? null,
+    koti: joukkue(o.homeTeam),
+    vieras: joukkue(o.awayTeam),
+  };
+}
+
+// ---------- Haku ----------
 const kausi = await hae(`/club-schedule-season/${JOUKKUE}/now`);
-let ottelu = viimeisinPelattu(kausi);
+let ottelut = (kausi.games ?? []).filter(oikeaOttelu);
 
-// Kauden alussa tai kesätauolla voi olla, ettei uudella kaudella ole vielä pelattuja otteluita.
-if (!ottelu && kausi.previousSeason) {
-  ottelu = viimeisinPelattu(await hae(`/club-schedule-season/${JOUKKUE}/${kausi.previousSeason}`));
+// Kauden alussa uudella kaudella ei välttämättä ole vielä pelattuja otteluita: haetaan edellinen kausi mukaan.
+if (!ottelut.some(pelattu) && kausi.previousSeason) {
+  const edellinen = await hae(`/club-schedule-season/${JOUKKUE}/${kausi.previousSeason}`);
+  ottelut = [...(edellinen.games ?? []).filter(oikeaOttelu), ...ottelut];
 }
-if (!ottelu) {
-  console.log("Pelattuja otteluita ei löytynyt, tiedostoa ei muutettu.");
-  process.exit(0);
+ottelut.sort(aikajarjestys);
+
+const viimeisin = ottelut.filter(pelattu).at(-1) ?? null;
+const live = ottelut.find(kaynnissa) ?? null;
+const seuraava = ottelut.find(tulossa) ?? null;
+
+let tulos = null;
+if (viimeisin) {
+  if (typeof omaOf(viimeisin).score !== "number" || typeof vastustajaOf(viimeisin).score !== "number") {
+    throw new Error(`Ottelun ${viimeisin.id} tulos puuttuu rajapinnasta.`);
+  }
+  // Jatkoaika- ja voittolaukaushäviöt ovat häviöitä.
+  tulos = voitettu(viimeisin) ? "VOITTO" : "HÄVIÖ";
 }
 
-const kotona = ottelu.homeTeam.abbrev === JOUKKUE;
-const oma = kotona ? ottelu.homeTeam : ottelu.awayTeam;
-const vastustaja = kotona ? ottelu.awayTeam : ottelu.homeTeam;
-if (typeof oma.score !== "number" || typeof vastustaja.score !== "number") {
-  throw new Error(`Ottelun ${ottelu.id} tulos puuttuu rajapinnasta.`);
+// ---------- Pudotuspelisarja ----------
+// Sarja lasketaan pelatuista pudotuspeliotteluista saman vastustajan kanssa.
+// Sarjan vastustajaksi valitaan käynnissä olevan tai seuraavan pudotuspeliottelun vastustaja,
+// muuten viimeisimmän pudotuspeliottelun vastustaja.
+let sarja = null;
+const sarjaOttelu = [live, seuraava].find((o) => o && o.gameType === 3) ?? (viimeisin?.gameType === 3 ? viimeisin : null);
+// Kun seuraavana on jo runkosarjaa (uusi kausi), viime kevään sarjaa ei enää näytetä.
+const uusiKausiAlkamassa = !live && seuraava?.gameType === 2;
+if (sarjaOttelu && !uusiKausiAlkamassa) {
+  const vastustaja = vastustajaOf(sarjaOttelu);
+  const kausiId = sarjaOttelu.season;
+  const sarjanOttelut = ottelut.filter(
+    (o) => o.gameType === 3 && pelattu(o) && vastustajaOf(o).abbrev === vastustaja.abbrev && (!kausiId || o.season === kausiId)
+  );
+  sarja = {
+    vastustaja: joukkue(vastustaja).lyhytNimi,
+    voitot: sarjanOttelut.filter(voitettu).length,
+    tappiot: sarjanOttelut.filter((o) => !voitettu(o)).length,
+  };
 }
 
-// Jatkoaika- ja voittolaukaushäviöt ovat häviöitä.
-const tulos = {
-  tulos: oma.score > vastustaja.score ? "VOITTO" : "HÄVIÖ",
-  ottelu: {
-    id: ottelu.id,
-    alkoi: ottelu.startTimeUTC,
-    pudotuspeli: ottelu.gameType === 3,
-    areena: ottelu.venue?.default ?? null,
-    koti: joukkue(ottelu.homeTeam),
-    vieras: joukkue(ottelu.awayTeam),
-  },
+const data = {
+  tulos,
+  ottelu: viimeisin ? otteluTiedot(viimeisin) : null,
+  kaynnissa: live ? otteluTiedot(live) : null,
+  seuraava: seuraava ? otteluTiedot(seuraava) : null,
+  sarja,
 };
 
-const uusi = JSON.stringify(tulos, null, 2) + "\n";
+const uusi = JSON.stringify(data, null, 2) + "\n";
 const vanha = await readFile(TIEDOSTO, "utf8").catch(() => "");
 if (uusi === vanha) {
-  console.log("Ei uutta ottelua.");
+  console.log("Ei muutoksia.");
 } else {
   await writeFile(TIEDOSTO, uusi);
-  console.log(`Päivitetty: ${tulos.ottelu.koti.nimi} – ${tulos.ottelu.vieras.nimi}`);
+  console.log(
+    `Päivitetty. Viimeisin: ${data.ottelu ? `${data.ottelu.koti.nimi} – ${data.ottelu.vieras.nimi} (${tulos})` : "-"}` +
+      ` | Käynnissä: ${data.kaynnissa ? "kyllä" : "ei"} | Seuraava: ${data.seuraava?.alkoi ?? "-"}` +
+      (sarja ? ` | Sarja ${sarja.voitot}–${sarja.tappiot} vs ${sarja.vastustaja}` : "")
+  );
 }
