@@ -1,0 +1,17 @@
+{
+  "name": "Capitals – voitto vai häviö?",
+  "short_name": "Capitals",
+  "description": "Voittiko vai hävisikö Washington Capitals yön ottelun.",
+  "lang": "fi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#041E42",
+  "theme_color": "#041E42",
+  "icons": [
+    { "src": "kuvakkeet/ikoni-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "kuvakkeet/ikoni-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "kuvakkeet/ikoni-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

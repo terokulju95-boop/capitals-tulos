@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#041E42">
 <title>Capitals – voitto vai häviö?</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="kuvakkeet/ikoni-192.png">
+<link rel="apple-touch-icon" href="kuvakkeet/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Capitals">
 <style>
   :root {
     --navy: #041E42;
@@ -363,6 +368,9 @@
     }
   }
   nappi.onclick = haeNyt;
+
+  // ---------- Asennettava sovellus ----------
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
   // ---------- Käynnistys ----------
   lataaTulos()
