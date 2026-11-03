@@ -8,12 +8,34 @@
     "koti": {
       "lyhenne": "WSH",
       "nimi": "Washington Capitals",
+      "lyhytNimi": "Capitals",
       "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
     },
     "vieras": {
       "lyhenne": "MIN",
       "nimi": "Minnesota Wild",
+      "lyhytNimi": "Wild",
       "logo": "https://assets.nhle.com/logos/nhl/svg/MIN_light.svg"
     }
-  }
+  },
+  "kaynnissa": null,
+  "seuraava": {
+    "id": 2026020243,
+    "alkoi": "2026-11-04T00:00:00Z",
+    "pudotuspeli": false,
+    "areena": "Capital One Arena",
+    "koti": {
+      "lyhenne": "WSH",
+      "nimi": "Washington Capitals",
+      "lyhytNimi": "Capitals",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
+    },
+    "vieras": {
+      "lyhenne": "DAL",
+      "nimi": "Dallas Stars",
+      "lyhytNimi": "Stars",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/DAL_light.svg"
+    }
+  },
+  "sarja": null
 }
