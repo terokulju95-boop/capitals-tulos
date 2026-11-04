@@ -11,9 +11,16 @@ import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import webpush from "web-push";
 
-const { FIREBASE_SERVICE_ACCOUNT, VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT, ILMOITUS_TIEDOSTO } = process.env;
+// Avaimista poistetaan välilyönnit, rivinvaihdot ja lainausmerkit, jos niitä tarttui mukaan kopioidessa.
+const siivoa = (arvo) => (arvo ?? "").replace(/[\s"'`]/g, "").replace(/=+$/, "");
+const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+const VAPID_PUBLIC = siivoa(process.env.VAPID_PUBLIC);
+const VAPID_PRIVATE = siivoa(process.env.VAPID_PRIVATE);
+const VAPID_SUBJECT = (process.env.VAPID_SUBJECT ?? "").trim().replace(/^["'`]|["'`]$/g, "");
+const { ILMOITUS_TIEDOSTO } = process.env;
 
-const puuttuvat = ["FIREBASE_SERVICE_ACCOUNT", "VAPID_PUBLIC", "VAPID_PRIVATE", "VAPID_SUBJECT"].filter((n) => !process.env[n]?.trim());
+const arvot = { FIREBASE_SERVICE_ACCOUNT, VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT };
+const puuttuvat = Object.keys(arvot).filter((n) => !arvot[n]);
 if (puuttuvat.length) {
   console.log(`Ilmoitusta ei lähetetty. GitHubin Secrets-kohdasta (Repository secrets) puuttuu: ${puuttuvat.join(", ")}`);
   process.exit(0);
@@ -25,9 +32,19 @@ if (!VAPID_SUBJECT.startsWith("mailto:") && !VAPID_SUBJECT.startsWith("https://"
 
 const ilmoitus = JSON.parse(await readFile(ILMOITUS_TIEDOSTO, "utf8"));
 
+// Tarkistetaan avainten muoto, jotta virheilmoitus kertoo suoraan, kumpi avain on väärin.
+if (!/^[A-Za-z0-9_-]{80,90}$/.test(VAPID_PUBLIC)) {
+  console.log(`VAPID_PUBLIC on väärän muotoinen (${VAPID_PUBLIC.length} merkkiä, pitäisi olla 87). Kopioi se uudelleen VAPID-avaimet.txt-tiedostosta.`);
+  process.exit(1);
+}
+if (!/^[A-Za-z0-9_-]{40,46}$/.test(VAPID_PRIVATE)) {
+  console.log(`VAPID_PRIVATE on väärän muotoinen (${VAPID_PRIVATE.length} merkkiä, pitäisi olla 43). Kopioi se uudelleen VAPID-avaimet.txt-tiedostosta.`);
+  process.exit(1);
+}
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+
 initializeApp({ credential: cert(JSON.parse(FIREBASE_SERVICE_ACCOUNT)) });
 const db = getFirestore();
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
 const payload = JSON.stringify({
   title: ilmoitus.otsikko,
