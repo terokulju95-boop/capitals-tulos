@@ -5,7 +5,7 @@
 //  - pudotuspelisarjan tilanteen keväällä
 // Maalimääriä ei tallenneta, jotta yksittäisten otteluiden lopputulokset eivät paljastu.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 
 const JOUKKUE = "WSH";
 const API = "https://api-web.nhle.com/v1";
@@ -98,6 +98,8 @@ if (sarjaOttelu && !uusiKausiAlkamassa) {
 }
 
 const data = {
+  // Milloin haku viimeksi onnistui. Näytetään sovelluksessa.
+  haettu: new Date().toISOString(),
   tulos,
   ottelu: viimeisin ? otteluTiedot(viimeisin) : null,
   kaynnissa: live ? otteluTiedot(live) : null,
@@ -105,12 +107,9 @@ const data = {
   sarja,
 };
 
-const uusi = JSON.stringify(data, null, 2) + "\n";
-const vanha = await readFile(TIEDOSTO, "utf8").catch(() => "");
-if (uusi === vanha) {
-  console.log("Ei muutoksia.");
-} else {
-  await writeFile(TIEDOSTO, uusi);
+// Tiedosto kirjoitetaan joka haulla, jotta hakuaika päivittyy myös silloin, kun uutta ottelua ei ole.
+{
+  await writeFile(TIEDOSTO, JSON.stringify(data, null, 2) + "\n");
   console.log(
     `Päivitetty. Viimeisin: ${data.ottelu ? `${data.ottelu.koti.nimi} – ${data.ottelu.vieras.nimi} (${tulos})` : "-"}` +
       ` | Käynnissä: ${data.kaynnissa ? "kyllä" : "ei"} | Seuraava: ${data.seuraava?.alkoi ?? "-"}` +

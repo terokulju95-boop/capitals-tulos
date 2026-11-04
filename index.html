@@ -129,6 +129,7 @@
   .nappi:active { transform: scale(.97); }
   .nappi:disabled { opacity: .5; cursor: default; }
   .tila { color: var(--silver); font-size: .85rem; min-height: 1.2em; }
+  .haettu { color: var(--silver); font-size: .78rem; opacity: .85; }
   .asetuslinkki { background: none; border: 0; color: var(--silver); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
 
   .asetukset {
@@ -181,6 +182,7 @@
   <div class="toiminnot">
     <button class="nappi" id="haeNappi">Hae tulos</button>
     <div class="tila" id="tila"></div>
+    <div class="haettu" id="haettu"></div>
     <button class="asetuslinkki" id="asetusLinkki">Asetukset</button>
     <form class="asetukset" id="asetukset" hidden>
       <label>GitHub-käyttäjänimi <input id="aOmistaja" autocomplete="off"></label>
@@ -317,7 +319,24 @@
   // Käynnissä oleva ottelu näytetään enintään 6 tuntia alkamisesta (vanhentunut tieto ohitetaan)
   const onKaynnissa = (data) => data?.kaynnissa && Date.now() - new Date(data.kaynnissa.alkoi) < 6 * 36e5;
 
+  // "Tiedot haettu tänään klo 9.30" (Suomen aikaa)
+  function naytaHakuaika(iso) {
+    const el = document.getElementById("haettu");
+    if (!iso) { el.textContent = ""; return; }
+    const d = new Date(iso);
+    const paiva = (x) => x.toLocaleDateString("fi-FI", { timeZone: "Europe/Helsinki" });
+    const nyt = new Date();
+    const eilen = new Date(nyt.getTime() - 864e5);
+    const klo = d.toLocaleTimeString("fi-FI", { hour: "numeric", minute: "2-digit", timeZone: "Europe/Helsinki" });
+    let milloin;
+    if (paiva(d) === paiva(nyt)) milloin = "tänään";
+    else if (paiva(d) === paiva(eilen)) milloin = "eilen";
+    else milloin = d.toLocaleDateString("fi-FI", { weekday: "short", day: "numeric", month: "numeric", timeZone: "Europe/Helsinki" });
+    el.textContent = `Tiedot haettu ${milloin} klo ${klo}`;
+  }
+
   function nayta(data) {
+    naytaHakuaika(data?.haettu);
     if (onKaynnissa(data)) {
       const k = data.kaynnissa;
       nykyinenId = `live-${k.id}`;
