@@ -23,18 +23,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node scripts/paivita.mjs
-      - name: Tallenna muutos repoon
+      - name: Hae tulos ja tallenna repoon
         run: |
-          if git diff --quiet; then
-            echo "Ei muutoksia."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/tulos.json
-          git commit -m "Päivitä ottelun tulos"
-          git push
+
+          # Jos GitHub on hetkellisesti häiriössä tai toinen haku ehti tallentaa ensin,
+          # yritetään uudelleen enintään neljä kertaa (odotus 10 s, 20 s ja 30 s).
+          for yritys in 1 2 3 4; do
+            if [ "$yritys" -gt 1 ]; then
+              echo "Yritetään uudelleen ($yritys/4)…"
+              sleep $(( (yritys - 1) * 10 ))
+            fi
+
+            # Aloitetaan aina repon tuoreimmasta versiosta
+            git fetch origin main || continue
+            git reset --hard origin/main
+
+            node scripts/paivita.mjs
+            git add data/tulos.json
+            if git diff --cached --quiet; then
+              echo "Ei muutoksia."
+              exit 0
+            fi
+            git commit -m "Päivitä ottelun tulos"
+
+            if git push origin HEAD:main; then
+              echo "Tallennettu."
+              exit 0
+            fi
+            echo "Tallennus epäonnistui."
+          done
+
+          echo "Tallennus ei onnistunut neljällä yrityksellä. GitHubissa voi olla häiriö (githubstatus.com)."
+          exit 1
