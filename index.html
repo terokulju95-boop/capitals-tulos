@@ -130,6 +130,13 @@
   .nappi:disabled { opacity: .5; cursor: default; }
   .tila { color: var(--silver); font-size: .85rem; min-height: 1.2em; }
   .haettu { color: var(--silver); font-size: .78rem; opacity: .85; }
+  .pieninappi {
+    font: inherit; font-size: .85rem; color: var(--white);
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25);
+    border-radius: 999px; padding: 8px 16px; cursor: pointer; margin-top: 6px;
+  }
+  .pieninappi.paalla { border-color: var(--red); background: rgba(200,16,46,.18); }
+  .pieninappi:disabled { opacity: .55; cursor: default; }
   .asetuslinkki { background: none; border: 0; color: var(--silver); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
 
   .asetukset {
@@ -183,6 +190,7 @@
     <button class="nappi" id="haeNappi">Hae tulos</button>
     <div class="tila" id="tila"></div>
     <div class="haettu" id="haettu"></div>
+    <button class="pieninappi" id="ilmoitusNappi" hidden>🔔 Ilmoitukset pois</button>
     <button class="asetuslinkki" id="asetusLinkki">Asetukset</button>
     <form class="asetukset" id="asetukset" hidden>
       <label>GitHub-käyttäjänimi <input id="aOmistaja" autocomplete="off"></label>
@@ -251,6 +259,16 @@
 
 <script>
   const OMA = "WSH";
+
+  // ---------- Push-ilmoitusten asetukset ----------
+  // VAPID-avaimen julkinen osa (yksityinen osa on GitHubin Secrets-kohdassa).
+  // Firebase-tiedot: Capitals-sovelluksen OMA Firebase-projekti (ei veikkaussovelluksen).
+  // Jos Firebase-tiedot puuttuvat, ilmoituskytkin ei näy.
+  const ILMOITUKSET = {
+    vapidJulkinen: "BIIBlhcE831-inuC8CralTKTT7SVzfvUIfXTxd5fQd8cs9o6mI2J9auGn2IOor5fUHml4SSKNO1x0QfJQd9olro",
+    firebaseProjekti: "capitals-tulos",
+    firebaseApiAvain: "AIzaSyDKpR73f_5SZtWEBeG7Ru8gNLFihXJ2s4o",
+  };
   const sisalto = document.getElementById("sisalto");
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -336,7 +354,6 @@
   }
 
   function nayta(data) {
-    naytaHakuaika(data?.haettu);
     if (onKaynnissa(data)) {
       const k = data.kaynnissa;
       nykyinenId = `live-${k.id}`;
@@ -480,6 +497,7 @@
           continue;
         }
         if (ajo.conclusion !== "success") throw new Error("Haku epäonnistui. Katso lisätiedot GitHubin Actions-välilehdeltä.");
+        naytaHakuaika(ajo.updated_at);
         const data = await lataaTulos();
         const ennen = nykyinenId;
         nayta(data);
@@ -534,10 +552,120 @@
     }).catch(() => {});
   }
 
+  // ---------- Viimeisin hakuaika GitHubista ----------
+  // Tulostiedosto tallennetaan vain, kun tieto muuttuu, joten hakuaika luetaan GitHubin onnistuneista hauista.
+  async function paivitaHakuaika() {
+    const a = asetukset();
+    if (!a.omistaja || !a.repo) return;
+    const polku = "/actions/workflows/paivita.yml/runs?status=success&per_page=1";
+    try {
+      const r = valmis(a)
+        ? await gh(polku)
+        : await fetch(`https://api.github.com/repos/${encodeURIComponent(a.omistaja)}/${encodeURIComponent(a.repo)}${polku}`, {
+            headers: { Accept: "application/vnd.github+json" }, cache: "no-store",
+          });
+      if (!r.ok) return;
+      const ajo = (await r.json()).workflow_runs?.[0];
+      if (ajo) naytaHakuaika(ajo.updated_at);
+    } catch {}
+  }
+
+  // ---------- Push-ilmoitukset ----------
+  const ilmoitusNappi = document.getElementById("ilmoitusNappi");
+  const ilmoituksetKaytossa = () =>
+    ILMOITUKSET.firebaseProjekti && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+  async function tilausTunniste(endpoint) {
+    const tiiviste = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
+    return [...new Uint8Array(tiiviste)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function firestoreOsoite(endpoint) {
+    const avain = ILMOITUKSET.firebaseApiAvain ? `?key=${encodeURIComponent(ILMOITUKSET.firebaseApiAvain)}` : "";
+    return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(ILMOITUKSET.firebaseProjekti)}` +
+      `/databases/(default)/documents/tilaukset/${await tilausTunniste(endpoint)}${avain}`;
+  }
+  async function tallennaTilaus(tilaus) {
+    const r = await fetch(await firestoreOsoite(tilaus.endpoint), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: {
+        sub: { stringValue: JSON.stringify(tilaus.toJSON()) },
+        paivitetty: { timestampValue: new Date().toISOString() },
+      } }),
+    });
+    if (!r.ok) throw new Error(`Firebase vastasi ${r.status}`);
+  }
+  async function poistaTilaus(tilaus) {
+    await fetch(await firestoreOsoite(tilaus.endpoint), { method: "DELETE" }).catch(() => {});
+  }
+  function vapidAvain() {
+    const b64 = ILMOITUKSET.vapidJulkinen.replace(/-/g, "+").replace(/_/g, "/");
+    const raaka = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    return Uint8Array.from(raaka, (c) => c.charCodeAt(0));
+  }
+
+  function naytaIlmoitusTila(paalla) {
+    ilmoitusNappi.hidden = false;
+    if (Notification.permission === "denied") {
+      ilmoitusNappi.textContent = "🔕 Ilmoitukset estetty puhelimen asetuksista";
+      ilmoitusNappi.disabled = true;
+      ilmoitusNappi.classList.remove("paalla");
+      return;
+    }
+    ilmoitusNappi.disabled = false;
+    ilmoitusNappi.textContent = paalla ? "🔔 Ilmoitukset päällä" : "🔕 Ilmoitukset pois";
+    ilmoitusNappi.classList.toggle("paalla", paalla);
+  }
+
+  async function alustaIlmoitukset() {
+    if (!ilmoituksetKaytossa()) return;
+    const reg = await navigator.serviceWorker.ready;
+    let tilaus = await reg.pushManager.getSubscription();
+    const paalla = !!tilaus && Notification.permission === "granted";
+    naytaIlmoitusTila(paalla);
+    // Tallennetaan tilaus uudelleen joka avauskerralla, jotta Firebasessa on aina puhelimen ajantasainen osoite.
+    if (paalla) tallennaTilaus(tilaus).catch(() => {});
+
+    ilmoitusNappi.onclick = async () => {
+      ilmoitusNappi.disabled = true;
+      try {
+        tilaus = await reg.pushManager.getSubscription();
+        if (tilaus && Notification.permission === "granted") {
+          await poistaTilaus(tilaus);
+          await tilaus.unsubscribe();
+          naytaIlmoitusTila(false);
+          asetaTila("Ilmoitukset poistettu käytöstä.");
+          return;
+        }
+        const lupa = await Notification.requestPermission();
+        if (lupa !== "granted") { naytaIlmoitusTila(false); asetaTila("Ilmoituksille ei annettu lupaa."); return; }
+        tilaus = tilaus || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidAvain() });
+        await tallennaTilaus(tilaus);
+        naytaIlmoitusTila(true);
+        asetaTila("Ilmoitukset päällä. Saat äänettömän ilmoituksen, kun uusi ottelu on päättynyt.");
+      } catch (e) {
+        naytaIlmoitusTila(false);
+        asetaTila(`Ilmoitusten käyttöönotto epäonnistui. ${e.message || ""}`.trim());
+      } finally {
+        if (Notification.permission !== "denied") ilmoitusNappi.disabled = false;
+      }
+    };
+  }
+
   // ---------- Käynnistys ----------
-  lataaTulos()
-    .then(nayta)
-    .catch(() => (sisalto.innerHTML = `<p class="viesti">Tulosta ei saatu ladattua. Yritä hetken päästä uudelleen.</p>`));
+  function lataaJaNayta() {
+    return lataaTulos()
+      .then(nayta)
+      .catch(() => (sisalto.innerHTML = `<p class="viesti">Tulosta ei saatu ladattua. Yritä hetken päästä uudelleen.</p>`));
+  }
+  lataaJaNayta();
+  paivitaHakuaika();
+  alustaIlmoitukset().catch(() => {});
+
+  // Kun sovellus palaa taustalta näkyviin (esim. ilmoituksen napautuksesta), haetaan tuoreet tiedot.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !nappi.disabled) { lataaJaNayta(); paivitaHakuaika(); }
+  });
 </script>
 </body>
 </html>

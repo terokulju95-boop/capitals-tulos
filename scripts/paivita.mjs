@@ -5,7 +5,7 @@
 //  - pudotuspelisarjan tilanteen keväällä
 // Maalimääriä ei tallenneta, jotta yksittäisten otteluiden lopputulokset eivät paljastu.
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 const JOUKKUE = "WSH";
 const API = "https://api-web.nhle.com/v1";
@@ -98,8 +98,6 @@ if (sarjaOttelu && !uusiKausiAlkamassa) {
 }
 
 const data = {
-  // Milloin haku viimeksi onnistui. Näytetään sovelluksessa.
-  haettu: new Date().toISOString(),
   tulos,
   ottelu: viimeisin ? otteluTiedot(viimeisin) : null,
   kaynnissa: live ? otteluTiedot(live) : null,
@@ -107,12 +105,36 @@ const data = {
   sarja,
 };
 
-// Tiedosto kirjoitetaan joka haulla, jotta hakuaika päivittyy myös silloin, kun uutta ottelua ei ole.
-{
-  await writeFile(TIEDOSTO, JSON.stringify(data, null, 2) + "\n");
-  console.log(
-    `Päivitetty. Viimeisin: ${data.ottelu ? `${data.ottelu.koti.nimi} – ${data.ottelu.vieras.nimi} (${tulos})` : "-"}` +
-      ` | Käynnissä: ${data.kaynnissa ? "kyllä" : "ei"} | Seuraava: ${data.seuraava?.alkoi ?? "-"}` +
-      (sarja ? ` | Sarja ${sarja.voitot}–${sarja.tappiot} vs ${sarja.vastustaja}` : "")
-  );
+// ---------- Tallennus ja ilmoitus ----------
+// Tiedosto kirjoitetaan vain, kun tieto muuttuu. Muuten GitHubiin ei synny turhia tallennuksia.
+const vanhaTeksti = await readFile(TIEDOSTO, "utf8").catch(() => "");
+let vanha = null;
+try { vanha = JSON.parse(vanhaTeksti); } catch {}
+
+const uusiTeksti = JSON.stringify(data, null, 2) + "\n";
+if (uusiTeksti === vanhaTeksti) {
+  console.log("Ei muutoksia.");
+  process.exit(0);
+}
+await writeFile(TIEDOSTO, uusiTeksti);
+console.log(
+  `Päivitetty. Viimeisin: ${data.ottelu ? `${data.ottelu.koti.nimi} – ${data.ottelu.vieras.nimi} (${tulos})` : "-"}` +
+    ` | Käynnissä: ${data.kaynnissa ? "kyllä" : "ei"} | Seuraava: ${data.seuraava?.alkoi ?? "-"}` +
+    (sarja ? ` | Sarja ${sarja.voitot}–${sarja.tappiot} vs ${sarja.vastustaja}` : "")
+);
+
+// Uusi pelattu ottelu → valmistellaan push-ilmoitus. Workflow lähettää sen vasta, kun tallennus GitHubiin onnistuu,
+// joten sama ottelu ilmoitetaan vain kerran, vaikka hakuja tehdään kymmenen minuutin välein.
+const ilmoitusTiedosto = process.env.ILMOITUS_TIEDOSTO;
+const uusiOttelu = data.ottelu && data.tulos && data.ottelu.id !== vanha?.ottelu?.id;
+const tuore = data.ottelu && Date.now() - new Date(data.ottelu.alkoi) < 24 * 36e5;
+if (ilmoitusTiedosto && uusiOttelu && tuore) {
+  const o = data.ottelu;
+  const ilmoitus = {
+    otsikko: `Capitals – ${data.tulos}`,
+    teksti: `${o.koti.nimi} – ${o.vieras.nimi}`,
+    ottelu: o.id,
+  };
+  await writeFile(ilmoitusTiedosto, JSON.stringify(ilmoitus));
+  console.log(`Ilmoitus valmisteltu: ${ilmoitus.otsikko} | ${ilmoitus.teksti}`);
 }
