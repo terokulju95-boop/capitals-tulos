@@ -2,7 +2,7 @@
 //
 // TÄRKEÄÄ: Kun sovellukseen tehdään muutoksia (index.html, kuvakkeet tms.), nosta VERSIO-numeroa.
 // Silloin puhelin huomaa uuden version ja kysyy, päivitetäänkö sovellus.
-const VERSIO = 5;
+const VERSIO = 6;
 
 const VALIMUISTI = `capitals-v${VERSIO}`;
 const SOVELLUS = [

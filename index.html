@@ -130,13 +130,24 @@
   .nappi:disabled { opacity: .5; cursor: default; }
   .tila { color: var(--silver); font-size: .85rem; min-height: 1.2em; }
   .haettu { color: var(--silver); font-size: .78rem; opacity: .85; }
-  .pieninappi {
-    font: inherit; font-size: .85rem; color: var(--white);
-    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25);
-    border-radius: 999px; padding: 8px 16px; cursor: pointer; margin-top: 6px;
+  /* Ilmoitukset-kytkin (päällä = punainen, nuppi oikealla; pois = harmaa, nuppi vasemmalla) */
+  .kytkinrivi {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 340px; max-width: calc(100vw - 40px); margin-top: 8px; padding: 12px 16px;
+    font: inherit; font-size: .95rem; color: var(--white); text-align: left;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.18); border-radius: 14px;
+    cursor: pointer;
   }
-  .pieninappi.paalla { border-color: var(--red); background: rgba(200,16,46,.18); }
-  .pieninappi:disabled { opacity: .55; cursor: default; }
+  .kr-nimi { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .kr-oikea { display: flex; align-items: center; gap: 10px; }
+  .kr-tila { font-size: .85rem; }
+  .kytkin { width: 46px; height: 26px; border-radius: 13px; background: #5F5E5A; position: relative; flex: none; transition: background .2s; }
+  .nuppi { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; }
+  .kytkinrivi.paalla { border-color: rgba(200,16,46,.7); }
+  .kytkinrivi.paalla .kytkin { background: var(--red); }
+  .kytkinrivi.paalla .nuppi { left: 23px; }
+  .kytkinrivi:not(.paalla) .kr-nimi, .kytkinrivi:not(.paalla) .kr-tila { color: var(--silver); }
+  .kytkinrivi:disabled { cursor: default; opacity: .6; }
   .asetuslinkki { background: none; border: 0; color: var(--silver); font: inherit; font-size: .8rem; text-decoration: underline; cursor: pointer; }
 
   .asetukset {
@@ -190,7 +201,10 @@
     <button class="nappi" id="haeNappi">Hae tulos</button>
     <div class="tila" id="tila"></div>
     <div class="haettu" id="haettu"></div>
-    <button class="pieninappi" id="ilmoitusNappi" hidden>🔔 Ilmoitukset pois</button>
+    <button class="kytkinrivi" id="ilmoitusNappi" role="switch" aria-checked="false" aria-label="Ilmoitukset" hidden>
+      <span class="kr-nimi"><span class="kr-kello" id="ilmoitusKello">🔕</span> Ilmoitukset</span>
+      <span class="kr-oikea"><span class="kr-tila" id="ilmoitusTila">Pois</span><span class="kytkin" aria-hidden="true"><span class="nuppi"></span></span></span>
+    </button>
     <button class="asetuslinkki" id="asetusLinkki">Asetukset</button>
     <form class="asetukset" id="asetukset" hidden>
       <label>GitHub-käyttäjänimi <input id="aOmistaja" autocomplete="off"></label>
@@ -604,17 +618,29 @@
     return Uint8Array.from(raaka, (c) => c.charCodeAt(0));
   }
 
-  function naytaIlmoitusTila(paalla) {
+  function naytaIlmoitusTila(paalla, kesken = false) {
     ilmoitusNappi.hidden = false;
+    const tila = document.getElementById("ilmoitusTila");
+    const kello = document.getElementById("ilmoitusKello");
     if (Notification.permission === "denied") {
-      ilmoitusNappi.textContent = "🔕 Ilmoitukset estetty puhelimen asetuksista";
       ilmoitusNappi.disabled = true;
       ilmoitusNappi.classList.remove("paalla");
+      ilmoitusNappi.setAttribute("aria-checked", "false");
+      kello.textContent = "🔕";
+      tila.textContent = "Estetty";
       return;
     }
-    ilmoitusNappi.disabled = false;
-    ilmoitusNappi.textContent = paalla ? "🔔 Ilmoitukset päällä" : "🔕 Ilmoitukset pois";
+    ilmoitusNappi.disabled = kesken;
     ilmoitusNappi.classList.toggle("paalla", paalla);
+    ilmoitusNappi.setAttribute("aria-checked", String(paalla));
+    kello.textContent = paalla ? "🔔" : "🔕";
+    tila.textContent = kesken ? "Odota…" : paalla ? "Päällä" : "Pois";
+  }
+
+  // Todellinen tila puhelimesta: tilaus olemassa ja lupa annettu
+  async function onkoPaalla(reg) {
+    const t = await reg.pushManager.getSubscription();
+    return !!t && Notification.permission === "granted";
   }
 
   async function alustaIlmoitukset() {
@@ -623,31 +649,40 @@
     let tilaus = await reg.pushManager.getSubscription();
     const paalla = !!tilaus && Notification.permission === "granted";
     naytaIlmoitusTila(paalla);
+    if (Notification.permission === "denied") {
+      asetaTila("Ilmoitukset on estetty puhelimen asetuksista. Salli ne puhelimen asetuksista kohdasta Sovellukset → Capitals (tai Chrome) → Ilmoitukset.");
+    }
     // Tallennetaan tilaus uudelleen joka avauskerralla, jotta Firebasessa on aina puhelimen ajantasainen osoite.
     if (paalla) tallennaTilaus(tilaus).catch(() => {});
 
     ilmoitusNappi.onclick = async () => {
-      ilmoitusNappi.disabled = true;
+      const oliPaalla = await onkoPaalla(reg);
+      naytaIlmoitusTila(oliPaalla, true);
       try {
         tilaus = await reg.pushManager.getSubscription();
-        if (tilaus && Notification.permission === "granted") {
+        if (oliPaalla) {
           await poistaTilaus(tilaus);
           await tilaus.unsubscribe();
           naytaIlmoitusTila(false);
-          asetaTila("Ilmoitukset poistettu käytöstä.");
+          asetaTila("Ilmoitukset laitettu pois päältä.");
           return;
         }
         const lupa = await Notification.requestPermission();
-        if (lupa !== "granted") { naytaIlmoitusTila(false); asetaTila("Ilmoituksille ei annettu lupaa."); return; }
+        if (lupa !== "granted") {
+          naytaIlmoitusTila(false);
+          asetaTila(lupa === "denied"
+            ? "Ilmoitukset on estetty. Salli ne puhelimen asetuksista kohdasta Sovellukset → Capitals (tai Chrome) → Ilmoitukset."
+            : "Ilmoituksille ei annettu lupaa.");
+          return;
+        }
         tilaus = tilaus || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidAvain() });
         await tallennaTilaus(tilaus);
         naytaIlmoitusTila(true);
-        asetaTila("Ilmoitukset päällä. Saat äänettömän ilmoituksen, kun uusi ottelu on päättynyt.");
+        asetaTila("Ilmoitukset laitettu päälle. Saat äänettömän ilmoituksen, kun uusi ottelu on päättynyt.");
       } catch (e) {
-        naytaIlmoitusTila(false);
-        asetaTila(`Ilmoitusten käyttöönotto epäonnistui. ${e.message || ""}`.trim());
-      } finally {
-        if (Notification.permission !== "denied") ilmoitusNappi.disabled = false;
+        // Näytetään puhelimen todellinen tila, ettei kytkin jää väärään asentoon
+        naytaIlmoitusTila(await onkoPaalla(reg).catch(() => false));
+        asetaTila(`Ilmoitusasetuksen muutos epäonnistui. ${e.message || ""}`.trim());
       }
     };
   }
