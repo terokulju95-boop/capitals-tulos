@@ -18,8 +18,7 @@
       "logo": "https://assets.nhle.com/logos/nhl/svg/FLA_light.svg"
     }
   },
-  "kaynnissa": null,
-  "seuraava": {
+  "kaynnissa": {
     "id": 2026020288,
     "alkoi": "2026-11-11T00:00:00Z",
     "pudotuspeli": false,
@@ -29,6 +28,24 @@
       "nimi": "Ottawa Senators",
       "lyhytNimi": "Senators",
       "logo": "https://assets.nhle.com/logos/nhl/svg/OTT_light.svg"
+    },
+    "vieras": {
+      "lyhenne": "WSH",
+      "nimi": "Washington Capitals",
+      "lyhytNimi": "Capitals",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
+    }
+  },
+  "seuraava": {
+    "id": 2026020303,
+    "alkoi": "2026-11-13T00:00:00Z",
+    "pudotuspeli": false,
+    "areena": "Prudential Center",
+    "koti": {
+      "lyhenne": "NJD",
+      "nimi": "New Jersey Devils",
+      "lyhytNimi": "Devils",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/NJD_light.svg"
     },
     "vieras": {
       "lyhenne": "WSH",
