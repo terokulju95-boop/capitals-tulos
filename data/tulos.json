@@ -1,24 +1,6 @@
 {
-  "tulos": "HÄVIÖ",
+  "tulos": "VOITTO",
   "ottelu": {
-    "id": 2026020363,
-    "alkoi": "2026-11-22T00:00:00Z",
-    "pudotuspeli": false,
-    "areena": "TD Garden",
-    "koti": {
-      "lyhenne": "BOS",
-      "nimi": "Boston Bruins",
-      "lyhytNimi": "Bruins",
-      "logo": "https://assets.nhle.com/logos/nhl/svg/BOS_light.svg"
-    },
-    "vieras": {
-      "lyhenne": "WSH",
-      "nimi": "Washington Capitals",
-      "lyhytNimi": "Capitals",
-      "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
-    }
-  },
-  "kaynnissa": {
     "id": 2026020392,
     "alkoi": "2026-11-26T00:00:00Z",
     "pudotuspeli": false,
@@ -36,6 +18,7 @@
       "logo": "https://assets.nhle.com/logos/nhl/svg/PHI_light.svg"
     }
   },
+  "kaynnissa": null,
   "seuraava": {
     "id": 2026020406,
     "alkoi": "2026-11-27T20:00:00Z",
