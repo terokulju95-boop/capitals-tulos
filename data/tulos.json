@@ -18,8 +18,7 @@
       "logo": "https://assets.nhle.com/logos/nhl/svg/PHI_light.svg"
     }
   },
-  "kaynnissa": null,
-  "seuraava": {
+  "kaynnissa": {
     "id": 2026020406,
     "alkoi": "2026-11-27T20:00:00Z",
     "pudotuspeli": false,
@@ -35,6 +34,24 @@
       "nimi": "Florida Panthers",
       "lyhytNimi": "Panthers",
       "logo": "https://assets.nhle.com/logos/nhl/svg/FLA_light.svg"
+    }
+  },
+  "seuraava": {
+    "id": 2026020422,
+    "alkoi": "2026-11-29T00:00:00Z",
+    "pudotuspeli": false,
+    "areena": "Enterprise Center",
+    "koti": {
+      "lyhenne": "STL",
+      "nimi": "St. Louis Blues",
+      "lyhytNimi": "Blues",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/STL_light.svg"
+    },
+    "vieras": {
+      "lyhenne": "WSH",
+      "nimi": "Washington Capitals",
+      "lyhytNimi": "Capitals",
+      "logo": "https://assets.nhle.com/logos/nhl/svg/WSH_secondary_light.svg"
     }
   },
   "sarja": null
